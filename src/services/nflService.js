@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { APIError, ERROR_CODES } from '../utils/errors';
 import { mockMatchups, mockTeams } from '../data/mockData'; // Temporary for testing
 
 const ESPN_API_BASE = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl';
@@ -75,34 +74,45 @@ const fetchTeamStats = async (teamId) => {
         console.log(`Raw stats for team ${teamId}:`, response.data);
 
         const stats = response.data?.results?.stats || [];
+        const opponentStats = response.data?.results?.opponent || [];
 
         // Get stats using exact array indices
         const passingStats = stats?.categories?.[0]?.stats || []; // Passing category
         const rushingStats = stats?.categories?.[1]?.stats || []; // Rushing category
-        const defensiveStats = stats?.categories?.[4]?.stats || []; // Defense category
 
         return {
             // Passing stats
-            passYards: parseFloat(passingStats[14]?.value || '0'), // Updated index for passing yards
+            passYards: parseFloat(passingStats[14]?.value || '0'),
 
             // Rushing stats
-            rushYards: parseFloat(rushingStats[1]?.value || '0'), // rushingYards
+            rushYards: parseFloat(rushingStats[1]?.value || '0'),
 
             // Calculate offensive yards (passing + rushing)
             offensiveYards: parseFloat(passingStats[14]?.value || '0') +
                 parseFloat(rushingStats[1]?.value || '0'),
 
             // Points per game from total points
-            pointsPerGame: parseFloat(passingStats[19]?.value || '0'), // totalPoints
+            pointsPerGame: parseFloat(passingStats[19]?.value || '0'),
 
-            // Defensive stats
-            defensiveYards: parseFloat(defensiveStats[2]?.value || '0'), // totalYards
-            passYardsAllowed: parseFloat(defensiveStats[0]?.value || '0'), // passingYardsAllowed
-            rushYardsAllowed: parseFloat(defensiveStats[1]?.value || '0'), // rushingYardsAllowed
-            pointsAllowed: parseFloat(defensiveStats[19]?.value || '0'), // pointsAllowed
+            // Defensive stats from opponent section
+            passYardsAllowed: parseFloat(opponentStats[0]?.stats?.[5]?.value || '0'),
+            rushYardsAllowed: parseFloat(opponentStats[1]?.stats?.[1]?.value || '0'),
+            pointsAllowed: parseFloat(opponentStats[10]?.stats?.[7]?.value || '0'),
+            // Calculate total defensive yards
+            defensiveYards: parseFloat(opponentStats[0]?.stats?.[5]?.value || '0') +
+                parseFloat(opponentStats[1]?.stats?.[1]?.value || '0'),
 
             // Games played
-            gamesPlayed: parseFloat(passingStats[16]?.value || '0') // teamGamesPlayed
+            gamesPlayed: parseFloat(passingStats[16]?.value || '0'),
+
+            // Points stats
+            totalPoints: parseFloat(passingStats[19]?.value || '0'), // Total points
+            pointsPerGame: parseFloat(passingStats[19]?.value || '0') / parseFloat(passingStats[16]?.value || '1'), // Points per game
+
+            totalPointsAllowed: parseFloat(opponentStats[10]?.stats?.[7]?.value || '0'), // Total points allowed
+            pointsAllowed: parseFloat(opponentStats[10]?.stats?.[7]?.value || '0') / parseFloat(passingStats[16]?.value || '1'), // Points allowed per game
+
+            // ... rest of the stats
         };
     } catch (error) {
         console.error(`Error fetching stats for team ${teamId}:`, error);
@@ -115,7 +125,11 @@ const fetchTeamStats = async (teamId) => {
             passYardsAllowed: 0,
             rushYardsAllowed: 0,
             pointsAllowed: 0,
-            gamesPlayed: 0
+            gamesPlayed: 0,
+            totalPoints: 0,
+            pointsPerGame: 0,
+            totalPointsAllowed: 0,
+            pointsAllowed: 0
         };
     }
 };

@@ -1,4 +1,5 @@
 import React from 'react';
+import { GamePrediction } from '../GamePrediction/GamePrediction';
 
 export const MatchupCard = ({ homeTeam, awayTeam, gameStatus, gameDate, homeScore, awayScore }) => {
     console.log('MatchupCard Props:', { homeTeam, awayTeam, gameStatus, gameDate, homeScore, awayScore });
@@ -38,7 +39,7 @@ export const MatchupCard = ({ homeTeam, awayTeam, gameStatus, gameDate, homeScor
     };
 
     return (
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="bg-white rounded-lg shadow-md p-6">
             {renderGameStatus()}
             <div className="grid grid-cols-3 gap-6 items-center mb-6">
                 <div className="text-center">
@@ -56,10 +57,10 @@ export const MatchupCard = ({ homeTeam, awayTeam, gameStatus, gameDate, homeScor
                         <p>Home Record: <span className="font-semibold">{homeTeam.homeRecord}</span></p>
                         <p>Last 5 Games: <span className="font-semibold">{homeTeam.lastFiveGames}</span></p>
                         <p>Offensive Yards/Game: <span className="font-semibold">
-                            {homeTeam.offensiveYards ? homeTeam.offensiveYards.toFixed(1) : 'N/A'}
+                            {homeTeam.gamesPlayed ? (homeTeam.offensiveYards / homeTeam.gamesPlayed).toFixed(1) : 'N/A'}
                         </span></p>
-                        <p>Defensive Yards Allowed: <span className="font-semibold">
-                            {homeTeam.defensiveYards ? homeTeam.defensiveYards.toFixed(1) : 'N/A'}
+                        <p>Defensive Yards Allowed/Game: <span className="font-semibold">
+                            {homeTeam.gamesPlayed ? (homeTeam.defensiveYards / homeTeam.gamesPlayed).toFixed(1) : 'N/A'}
                         </span></p>
                     </div>
                 </div>
@@ -83,14 +84,24 @@ export const MatchupCard = ({ homeTeam, awayTeam, gameStatus, gameDate, homeScor
                         <p>Away Record: <span className="font-semibold">{awayTeam.awayRecord}</span></p>
                         <p>Last 5 Games: <span className="font-semibold">{awayTeam.lastFiveGames}</span></p>
                         <p>Offensive Yards/Game: <span className="font-semibold">
-                            {awayTeam.offensiveYards ? awayTeam.offensiveYards.toFixed(1) : 'N/A'}
+                            {awayTeam.gamesPlayed ? (awayTeam.offensiveYards / awayTeam.gamesPlayed).toFixed(1) : 'N/A'}
                         </span></p>
-                        <p>Defensive Yards Allowed: <span className="font-semibold">
-                            {awayTeam.defensiveYards ? awayTeam.defensiveYards.toFixed(1) : 'N/A'}
+                        <p>Defensive Yards Allowed/Game: <span className="font-semibold">
+                            {awayTeam.gamesPlayed ? (awayTeam.defensiveYards / awayTeam.gamesPlayed).toFixed(1) : 'N/A'}
                         </span></p>
                     </div>
                 </div>
             </div>
+
+            <GamePrediction
+                game={{
+                    id: `${homeTeam.id}-${awayTeam.id}-${gameDate}`,
+                    homeTeam,
+                    awayTeam,
+                    gameStatus,
+                    gameDate
+                }}
+            />
         </div>
     );
 };
