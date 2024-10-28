@@ -59,21 +59,16 @@ const calculatePrediction = (homeTeam, awayTeam) => {
         (awayDefensiveEfficiency * 5)
     );
 
-    // Calculate base scores with more factors
-    let homePredictedScore = Math.round(
-        ((homeOffensiveStrength - awayDefensiveStrength) +
-            weights.homeFieldAdvantage +
-            (getRecentFormScore(homeTeam.homeRecord) * 2))
+    // Calculate base scores with more variance
+    let homePredictedScore = normalizeScore(
+        ((homeOffensiveStrength - awayDefensiveStrength) + weights.homeFieldAdvantage),
+        homeOffensiveStrength
     );
 
-    let awayPredictedScore = Math.round(
-        ((awayOffensiveStrength - homeDefensiveStrength) +
-            (getRecentFormScore(awayTeam.awayRecord) * 2))
+    let awayPredictedScore = normalizeScore(
+        (awayOffensiveStrength - homeDefensiveStrength),
+        awayOffensiveStrength
     );
-
-    // Normalize scores to realistic NFL ranges
-    homePredictedScore = normalizeScore(homePredictedScore);
-    awayPredictedScore = normalizeScore(awayPredictedScore);
 
     return {
         homePredictedScore,
@@ -84,25 +79,32 @@ const calculatePrediction = (homeTeam, awayTeam) => {
 };
 
 // Helper function to normalize scores to realistic NFL ranges
-const normalizeScore = (score) => {
+const normalizeScore = (score, offensiveStrength) => {
+    // Base score calculation using team's offensive strength
+    let normalizedScore = Math.max(3, Math.round(score * (offensiveStrength / 100)));
+
     // Ensure minimum score of 3
-    score = Math.max(3, score);
+    normalizedScore = Math.max(3, normalizedScore);
 
-    // Round to nearest field goal (3 points)
-    score = Math.round(score / 3) * 3;
+    // Add variance based on offensive strength
+    const varianceFactor = Math.random() * (offensiveStrength / 100);
+    normalizedScore += Math.round(varianceFactor * 14); // Up to 14 points of variance
 
-    // Add touchdown probability
-    if (Math.random() > 0.7) {
-        score += 7;
+    // Add touchdown probability (higher for stronger offenses)
+    if (Math.random() < (offensiveStrength / 150)) {
+        normalizedScore += 7;
     }
 
     // Add field goal probability
-    if (Math.random() > 0.6) {
-        score += 3;
+    if (Math.random() < 0.4) {
+        normalizedScore += 3;
     }
 
+    // Round to nearest field goal (3 points)
+    normalizedScore = Math.round(normalizedScore / 3) * 3;
+
     // Cap maximum score at 45 (rare to see higher)
-    return Math.min(score, 45);
+    return Math.min(normalizedScore, 45);
 };
 
 // Enhanced confidence calculation
