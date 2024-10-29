@@ -1,117 +1,155 @@
 import db from '../db/database';
 
 const calculatePrediction = (homeTeam, awayTeam) => {
-    // Enhanced weight factors
+    // Ensure we have valid team data
+    if (!homeTeam || !awayTeam) {
+        console.error('Missing team data in prediction calculation');
+        return {
+            homePredictedScore: 24,
+            awayPredictedScore: 21,
+            confidence: 50
+        };
+    }
+
     const weights = {
-        offenseWeight: 0.25,
-        defenseWeight: 0.35,
-        pointsScoredWeight: 0.15,
-        pointsAllowedWeight: 0.25,
-        homeFieldAdvantage: 1.5,
-        recentFormWeight: 0.2,
-        rushingWeight: 0.05,
-        passingWeight: 0.05
+        offenseWeight: 0.4,
+        defenseWeight: 0.4,
+        pointsScoredWeight: 0.1,
+        pointsAllowedWeight: 0.1,
+        homeFieldAdvantage: 2.5
     };
 
-    // Parse recent form (e.g., "3-2" to winning percentage)
-    const getRecentFormScore = (record) => {
-        const [wins, losses] = record.split('-').map(Number);
-        return wins / (wins + losses) || 0;
-    };
-
-    // Calculate offensive efficiency (points per yard)
-    const homeOffensiveEfficiency = homeTeam.pointsPerGame / (homeTeam.offensiveYards / homeTeam.gamesPlayed);
-    const awayOffensiveEfficiency = awayTeam.pointsPerGame / (awayTeam.offensiveYards / awayTeam.gamesPlayed);
-
-    // Calculate defensive efficiency (points allowed per yard)
-    const homeDefensiveEfficiency = homeTeam.pointsAllowed / (homeTeam.defensiveYards / homeTeam.gamesPlayed);
-    const awayDefensiveEfficiency = awayTeam.pointsAllowed / (awayTeam.defensiveYards / awayTeam.gamesPlayed);
-
-    // Calculate balanced offensive strength
+    // Calculate strengths with null checks
     const homeOffensiveStrength = (
-        (homeTeam.offensiveYards / homeTeam.gamesPlayed * weights.offenseWeight) +
-        (homeTeam.pointsPerGame * weights.pointsScoredWeight) +
-        (homeTeam.rushYards * weights.rushingWeight) +
-        (homeTeam.passYards * weights.passingWeight) +
-        (getRecentFormScore(homeTeam.lastFiveGames) * weights.recentFormWeight * 10) +
-        (homeOffensiveEfficiency * 5)
+        ((homeTeam.offensiveYards || 0) / (homeTeam.gamesPlayed || 1) * weights.offenseWeight) +
+        ((homeTeam.pointsPerGame || 0) * weights.pointsScoredWeight)
     );
 
     const awayOffensiveStrength = (
-        (awayTeam.offensiveYards / awayTeam.gamesPlayed * weights.offenseWeight) +
-        (awayTeam.pointsPerGame * weights.pointsScoredWeight) +
-        (awayTeam.rushYards * weights.rushingWeight) +
-        (awayTeam.passYards * weights.passingWeight) +
-        (getRecentFormScore(awayTeam.lastFiveGames) * weights.recentFormWeight * 10) +
-        (awayOffensiveEfficiency * 5)
+        ((awayTeam.offensiveYards || 0) / (awayTeam.gamesPlayed || 1) * weights.offenseWeight) +
+        ((awayTeam.pointsPerGame || 0) * weights.pointsScoredWeight)
     );
 
-    // Calculate balanced defensive strength
     const homeDefensiveStrength = (
-        (homeTeam.defensiveYards / homeTeam.gamesPlayed * weights.defenseWeight) +
-        (homeTeam.pointsAllowed * weights.pointsAllowedWeight) +
-        (homeDefensiveEfficiency * 5)
+        ((homeTeam.defensiveYards || 0) / (homeTeam.gamesPlayed || 1) * weights.defenseWeight) +
+        ((homeTeam.pointsAllowed || 0) * weights.pointsAllowedWeight)
     );
 
     const awayDefensiveStrength = (
-        (awayTeam.defensiveYards / awayTeam.gamesPlayed * weights.defenseWeight) +
-        (awayTeam.pointsAllowed * weights.pointsAllowedWeight) +
-        (awayDefensiveEfficiency * 5)
+        ((awayTeam.defensiveYards || 0) / (awayTeam.gamesPlayed || 1) * weights.defenseWeight) +
+        ((awayTeam.pointsAllowed || 0) * weights.pointsAllowedWeight)
     );
 
-    // Calculate base scores with more variance
-    let homePredictedScore = normalizeScore(
-        ((homeOffensiveStrength - awayDefensiveStrength) + weights.homeFieldAdvantage),
-        homeOffensiveStrength
+    // Generate scores
+    const homePredictedScore = normalizeScore(
+        homeOffensiveStrength + weights.homeFieldAdvantage,
+        homeOffensiveStrength,
+        awayDefensiveStrength
     );
 
-    let awayPredictedScore = normalizeScore(
-        (awayOffensiveStrength - homeDefensiveStrength),
-        awayOffensiveStrength
+    const awayPredictedScore = normalizeScore(
+        awayOffensiveStrength,
+        awayOffensiveStrength,
+        homeDefensiveStrength
     );
 
     return {
         homePredictedScore,
         awayPredictedScore,
-        confidence: calculateConfidence(homeOffensiveStrength, awayOffensiveStrength,
-            homeDefensiveStrength, awayDefensiveStrength)
+        confidence: calculateConfidence(
+            homeOffensiveStrength,
+            awayOffensiveStrength,
+            homeDefensiveStrength,
+            awayDefensiveStrength
+        )
     };
 };
 
 // Helper function to normalize scores to realistic NFL ranges
-const normalizeScore = (score, offensiveStrength) => {
-    // Base score calculation using team's offensive strength
-    let normalizedScore = Math.max(3, Math.round(score * (offensiveStrength / 100)));
+const normalizeScore = (score, offensiveStrength, defensiveStrength) => {
+    // Calculate base score using both offensive and defensive strengths
+    const strengthRatio = offensiveStrength / defensiveStrength;
 
-    // Ensure minimum score of 3
-    normalizedScore = Math.max(3, normalizedScore);
+    // Common NFL scores weighted by frequency (expanded to include higher scores)
+    const commonScores = [
+        // Lower scores
+        { score: 13, weight: 0.08 }, // FG + TD
+        { score: 14, weight: 0.08 }, // 2 TD
+        { score: 17, weight: 0.12 }, // 2 TD + FG
+        { score: 20, weight: 0.12 }, // 2 TD + 2 FG
+        { score: 21, weight: 0.10 }, // 3 TD
+        { score: 24, weight: 0.10 }, // 3 TD + FG
+        { score: 27, weight: 0.08 }, // 3 TD + 2 FG
+        { score: 28, weight: 0.08 }, // 4 TD
+        // Mid-range scores
+        { score: 31, weight: 0.06 }, // 4 TD + FG
+        { score: 34, weight: 0.05 }, // 4 TD + 2 FG
+        { score: 35, weight: 0.04 }, // 5 TD
+        { score: 38, weight: 0.03 }, // 5 TD + FG
+        // High scores (less common)
+        { score: 41, weight: 0.02 }, // 5 TD + 2 FG
+        { score: 42, weight: 0.01 }, // 6 TD
+        { score: 45, weight: 0.01 }, // 6 TD + FG
+        { score: 48, weight: 0.008 }, // 6 TD + 2 FG
+        { score: 49, weight: 0.006 }, // 7 TD
+        { score: 52, weight: 0.004 }, // 7 TD + FG
+        { score: 55, weight: 0.003 }, // 7 TD + 2 FG
+        { score: 56, weight: 0.002 }, // 8 TD
+        // Extreme scores (very rare)
+        { score: 63, weight: 0.001 }, // 9 TD
+        { score: 70, weight: 0.0005 }, // 10 TD
+        { score: 72, weight: 0.0005 }  // 10 TD + FG
+    ];
 
-    // Add variance based on offensive strength
-    const varianceFactor = Math.random() * (offensiveStrength / 100);
-    normalizedScore += Math.round(varianceFactor * 14); // Up to 14 points of variance
+    // Adjust score ranges based on team strength
+    let possibleScores;
 
-    // Add touchdown probability (higher for stronger offenses)
-    if (Math.random() < (offensiveStrength / 150)) {
-        normalizedScore += 7;
+    if (strengthRatio > 1.3) { // Very strong offense vs weak defense
+        possibleScores = commonScores.filter(s => s.score >= 28);
+    } else if (strengthRatio > 1.1) { // Strong offense vs weak defense
+        possibleScores = commonScores.filter(s => s.score >= 21 && s.score <= 49);
+    } else if (strengthRatio < 0.7) { // Very weak offense vs strong defense
+        possibleScores = commonScores.filter(s => s.score <= 21);
+    } else if (strengthRatio < 0.9) { // Weak offense vs strong defense
+        possibleScores = commonScores.filter(s => s.score <= 28);
+    } else { // Balanced matchup
+        possibleScores = commonScores.filter(s => s.score >= 14 && s.score <= 35);
     }
 
-    // Add field goal probability
-    if (Math.random() < 0.4) {
-        normalizedScore += 3;
+    // Random selection weighted by probability
+    const totalWeight = possibleScores.reduce((sum, score) => sum + score.weight, 0);
+    let random = Math.random() * totalWeight;
+
+    for (const scoreObj of possibleScores) {
+        random -= scoreObj.weight;
+        if (random <= 0) {
+            return scoreObj.score;
+        }
     }
 
-    // Round to nearest field goal (3 points)
-    normalizedScore = Math.round(normalizedScore / 3) * 3;
-
-    // Cap maximum score at 45 (rare to see higher)
-    return Math.min(normalizedScore, 45);
+    // Fallback to a common score if something goes wrong
+    return 24;
 };
 
 // Enhanced confidence calculation
 const calculateConfidence = (homeOff, awayOff, homeDef, awayDef) => {
+    // Add console.log to debug input values
+    console.log('Confidence Calculation Inputs:', {
+        homeOff,
+        awayOff,
+        homeDef,
+        awayDef
+    });
+
+    // Ensure we have valid numbers
+    if (!homeOff || !awayOff || !homeDef || !awayDef) {
+        console.error('Missing values in confidence calculation');
+        return 50; // Default to 50% if we're missing data
+    }
+
     // Calculate strength differences
-    const offensiveDifference = Math.abs(homeOff - awayOff);
-    const defensiveDifference = Math.abs(homeDef - awayDef);
+    const offensiveDifference = Math.abs(homeOff - awayOff) || 0;
+    const defensiveDifference = Math.abs(homeDef - awayDef) || 0;
 
     // Weight the differences (offense slightly more important)
     const weightedDifference = (offensiveDifference * 0.6) + (defensiveDifference * 0.4);
@@ -124,8 +162,13 @@ const calculateConfidence = (homeOff, awayOff, homeDef, awayDef) => {
         confidence = 70 + Math.round((confidence - 70) / 4);
     }
 
-    // Cap at 99%
-    return Math.min(confidence, 99);
+    // Ensure confidence is between 1 and 99
+    confidence = Math.min(Math.max(1, confidence), 99);
+
+    // Log final confidence value
+    console.log('Calculated Confidence:', confidence);
+
+    return confidence;
 };
 
 export const predictionService = {

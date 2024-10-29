@@ -16,16 +16,28 @@ export const GamePrediction = ({ game }) => {
     useEffect(() => {
         const loadPrediction = async () => {
             try {
-                const savedPrediction = await predictionService.getPrediction(game.id);
+                console.log('Game data received:', game);
+
+                const predictionId = `${game.week}-${game.id}`;
+
+                const savedPrediction = await predictionService.getPrediction(predictionId);
 
                 if (savedPrediction) {
+                    console.log('Found saved prediction:', savedPrediction);
                     setPrediction(savedPrediction);
                 } else {
+                    console.log('Generating new prediction with team data:', {
+                        homeTeam: game.homeTeam,
+                        awayTeam: game.awayTeam
+                    });
+
                     const newPrediction = predictionService.generatePrediction(
                         game.homeTeam,
                         game.awayTeam
                     );
-                    await predictionService.savePrediction(game.id, newPrediction);
+
+                    await predictionService.savePrediction(predictionId, newPrediction);
+                    console.log('New prediction generated:', newPrediction);
                     setPrediction(newPrediction);
                 }
             } catch (error) {

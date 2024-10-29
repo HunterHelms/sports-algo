@@ -28,6 +28,25 @@ const getWeeklyMatchups = async (week, year = 2024) => {
                 fetchTeamStats(awayTeam.team.id)
             ]);
 
+            // Log the stats to see what we're getting
+            console.log('Home Team Stats:', homeStats);
+            console.log('Away Team Stats:', awayStats);
+
+            // Ensure all required stats are present with fallback values
+            const processTeamStats = (stats) => ({
+                offensiveYards: stats.offensiveYards || 300, // fallback value
+                defensiveYards: stats.defensiveYards || 350,
+                yardsPerGame: stats.yardsPerGame || 300,
+                passYards: stats.passYards || 200,
+                rushYards: stats.rushYards || 100,
+                pointsPerGame: stats.pointsPerGame || 20,
+                pointsAllowed: stats.pointsAllowed || 24,
+                gamesPlayed: stats.gamesPlayed || 1
+            });
+
+            const processedHomeStats = processTeamStats(homeStats);
+            const processedAwayStats = processTeamStats(awayStats);
+
             return {
                 id: event.id,
                 week,
@@ -43,7 +62,7 @@ const getWeeklyMatchups = async (week, year = 2024) => {
                     homeRecord: homeTeam.records?.[0]?.summary || '0-0',
                     awayRecord: homeTeam.records?.[1]?.summary || '0-0',
                     lastFiveGames: homeTeam.records?.[2]?.summary || 'N/A',
-                    ...homeStats
+                    ...processedHomeStats
                 },
                 awayTeam: {
                     id: awayTeam.team.id,
@@ -53,7 +72,7 @@ const getWeeklyMatchups = async (week, year = 2024) => {
                     homeRecord: awayTeam.records?.[0]?.summary || '0-0',
                     awayRecord: awayTeam.records?.[1]?.summary || '0-0',
                     lastFiveGames: awayTeam.records?.[2]?.summary || 'N/A',
-                    ...awayStats
+                    ...processedAwayStats
                 }
             };
         }));
